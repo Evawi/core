@@ -1,5 +1,3 @@
-
 export { Request } from './Request';
-export { RequestPropsI} from './Interface'
-
-
+export * from './Interface';
+export { WebSocketClient } from './WebSocketClient';

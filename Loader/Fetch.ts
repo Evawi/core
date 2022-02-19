@@ -1,4 +1,4 @@
-import { UseMock, MockUrl, BaseUrl, RequestHeaderAccept, RequestHeaderContentType } from '../conf/main';
+import { UseMock, MockUrl, BaseUrl, RequestHeaderAccept, RequestHeaderContentType } from '../../../conf/main';
 import { RequestPropsI } from './Interface';
 
 export class FetchClass {
@@ -6,24 +6,24 @@ export class FetchClass {
     return UseMock;
   }
 
-  _requestHeader () {
+  _requestHeader() {
     const requestHeaders: HeadersInit = new Headers();
     if (RequestHeaderContentType) requestHeaders.set('Content-Type', RequestHeaderContentType);
     if (RequestHeaderAccept) requestHeaders.set('Accept', RequestHeaderAccept);
     return requestHeaders;
-  };
+  }
 
-  async fetch<BodyT, MockT> (requestProps:RequestPropsI<BodyT, MockT>, requestMethod: string): Promise<MockT> {
+  async fetch<BodyT, MockT>(requestProps: RequestPropsI<BodyT, MockT>, requestMethod: string): Promise<MockT> {
     let urlParams = requestProps.urlCtr;
     if (requestProps.urlTarget) urlParams += '/' + requestProps.urlTarget;
     if (requestProps.urlSearch) urlParams += '?' + requestProps.urlSearch;
     let method, url, body, headers;
     if (this._checkUseMock()) {
       const requestBodyData = {
-        needError:requestProps.needError,
-        delay:requestProps.delay,
+        needError: requestProps.needError,
+        delay: requestProps.delay,
         mockRequest: requestProps.mockRequest,
-        requestBody: requestProps.body,
+        requestBody: requestProps.body
       };
       method = 'POST';
       url = MockUrl + '/mock' + '?urlTarget=' + urlParams;
@@ -37,8 +37,8 @@ export class FetchClass {
       headers = this._requestHeader();
       console.log('_request:', method, url, requestProps.body, headers);
     }
-    const response = await fetch(url, {method,headers,body});
+    const response = await fetch(url, { method, headers, body });
     const responsebody = await response.json();
     return responsebody;
-  };
+  }
 }
