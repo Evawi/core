@@ -1,35 +1,17 @@
 import { UseMock, WebSocketMockUrl } from '../../../conf/main';
+import { MockRequestI } from './Interface';
 import { CL } from '../Logger';
 
 export class WebSocketClient {
-  constructor(connectionUrl, reconnectTimeout) {
+  _socket: WebSocket;
+  connectionUrl: string;
+  reconnectTimeout: number;
+
+  constructor(connectionUrl: string, reconnectTimeout: number) {
     // URL of the WebSocket server
     this.connectionUrl = connectionUrl;
-
     // Reconnection timeout in seconds
     this.reconnectTimeout = reconnectTimeout || 3;
-  }
-
-  _eventHandlers = {
-    // Connection error
-    onError: (event) => {},
-    // Connection was closed
-    onClose: (event) => {},
-    // Server sent response: data is already parsed!
-    onMessage: (data) => {},
-    // Connection was opened
-    onOpen: (event) => {},
-    // Connection was opened for the first time
-    onFirstOpen: (event) => {},
-    // Connection was reopened
-    onReopen: (event) => {},
-    // Connecting to the server
-    onConnecting: () => {},
-    // Request was just sent to the server
-    onProgress: () => {}
-  };
-  async onOpen() {
-    await this.socketPromise();
   }
 
   get isOpened() {
@@ -53,73 +35,24 @@ export class WebSocketClient {
   }
 
   connectSocket() {
-    this._socket = new WebSocket(UseMock ? WebSocketMockUrl : this.connectionUrl);
-    return this._socket;
-  }
-  socketPromise() {
-    console.log('this.reopenSocket()?');
-    return new Promise((resolve, reject) => {
-      this._socket.onopen = function () {
-        this.isOpened = true;
-        resolve();
-      };
-      this._socket.onerror = function () {
-        this.isOpened = false;
-        reject();
-      };
-    });
-  }
-  /*openSocket() {
-    this._eventHandlers.onConnecting();
-    this._promiseOnOpenSocket = new Promise((resolve) => {
-      this._getConnectionUrl()
-        .then((serverUrl) => {
-          if (!serverUrl) throw new Error("Couldn't get websocket server URL");
-          this._socket = new WebSocket(UseMock ? WebSocketMockUrl : serverUrl);
-          console.log('this._socket', this._socket);
-          this._onopen(resolve);
-          this._onerror();
-          this._onclose();
-        })
-        .catch((e) => console.error(e?.message));
-    });
-    return this._promiseOnOpenSocket;
-  }*/
-
-  reopenSocket() {
-    if (this._socket && this.isOpened) {
-      console.log('reopenSocket', this.socketPromise());
-      return this.socketPromise();
+    try {
+      this._socket = new WebSocket(UseMock ? WebSocketMockUrl : this.connectionUrl);
+      this._onopen();
+      this._onerror();
+      this._onclose();
+    } catch (error_msg) {
+      this._eventHandlers.onError(error_msg);
+      throw new Error(`Connection error: ${error_msg}`);
     }
-    this.connectSocket();
-
-    return this.socketPromise();
   }
 
-  send(realRequest, mockRequest, cb?: void) {
-    console.log('send');
-    const fullRequest = { realRequest, mockRequest };
-    CL.log('_websocket request mock:', fullRequest);
-    this._socket.send(this._parseToServer(fullRequest));
-
-    this.reopenSocket().then(
-      () => {
-        console.log('reopens?');
-        this._eventHandlers.onProgress();
-        if (UseMock) {
-          const fullRequest = { realRequest, mockRequest };
-          CL.log('_websocket request mock:', fullRequest);
-          this._socket.send(this._parseToServer(fullRequest));
-        } else {
-          CL.log('_websocket request:', realRequest);
-          this._socket.send(this._parseToServer(realRequest));
-        }
-        this._onmessage(cb);
-      },
-      () => {
-        console.log('alarm');
-      }
-    );
+  send<T>(realRequest: T, mockRequest: MockRequestI, cb?: void) {
+    if (this.isClosed) {
+      this.connectSocket();
+      this._onopen(this._send(realRequest, mockRequest, cb));
+    } else {
+      this._send(realRequest, mockRequest, cb);
+    }
   }
 
   close() {
@@ -127,7 +60,43 @@ export class WebSocketClient {
     this._socket.close();
   }
 
-  getProtocol() {
+  _send<T>(realRequest: T, mockRequest: MockRequestI, cb?: void) {
+    let sendMessage: object = {};
+    if (UseMock) {
+      sendMessage = { realRequest, mockRequest };
+    } else {
+      sendMessage = realRequest;
+    }
+
+    try {
+      this._socket.send(this._parseToServer(sendMessage));
+      CL.log('_websocket request:', realRequest);
+      this._onmessage(cb);
+    } catch (error_msg) {
+      console.log(this._socket, error_msg);
+    }
+  }
+
+  _eventHandlers = {
+    // Connection error
+    onError: (event) => {},
+    // Connection was closed
+    onClose: (event) => {},
+    // Server sent response: data is already parsed!
+    onMessage: (data) => {},
+    // Connection was opened
+    onOpen: (event) => {}
+    // Connection was opened for the first time
+    // onFirstOpen: (event) => {},
+    // Connection was reopened
+    // onReopen: (event) => {},
+    // Connecting to the server
+    //onConnecting: () => {},
+    // Request was just sent to the server
+    //onProgress: () => {}
+  };
+
+  _getProtocol() {
     const protocol = window.location.protocol;
     if (protocol === 'https:') {
       return 'wss://';
@@ -135,21 +104,14 @@ export class WebSocketClient {
     return 'ws://';
   }
 
-  _onopen(cb) {
+  _onopen(cb?: (a: any) => void) {
     this._socket.onopen = (event) => {
-      console.log('Connection established');
-      if (this.wasConnectedAlready) {
-        this._eventHandlers.onReopen(event);
-      } else {
-        this._eventHandlers.onFirstOpen(event);
-      }
-      this.wasConnectedAlready = true;
       this._eventHandlers.onOpen(event);
       if (cb) cb(event);
     };
   }
 
-  _onmessage(cb) {
+  _onmessage(cb?: (a: any) => void) {
     this._socket.onmessage = (event) => {
       const data = JSON.parse(event.data);
       this._eventHandlers.onMessage(data);
