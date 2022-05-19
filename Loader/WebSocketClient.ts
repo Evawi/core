@@ -112,6 +112,7 @@ export class WebSocketClient {
   }
 
   _onmessage(cb?: (a: any) => void) {
+    console.log('msg');
     this._socket.onmessage = (event) => {
       const data = JSON.parse(event.data);
       this._eventHandlers.onMessage(data);
