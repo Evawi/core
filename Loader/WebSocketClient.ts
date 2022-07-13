@@ -1,9 +1,10 @@
-import { UseMock, WebSocketMockUrl } from '../../../conf/main';
-import { MockRequestI } from './Interface';
-import { CL } from '../Logger';
+// @ts-nocheck
+import { UseMock, WebSocketMockUrl } from "@conf/main";
+import { MockRequestI } from "./Interface";
+import { CL } from "../Logger";
 
 export class WebSocketClient {
-  _socket: WebSocket;
+  _socket: WebSocket | null = null;
   connectionUrl: string;
   reconnectTimeout: number;
 
@@ -19,7 +20,11 @@ export class WebSocketClient {
   }
 
   get isClosed() {
-    return !this._socket || this._socket.readyState === 2 || this._socket.readyState === 3;
+    return (
+      !this._socket ||
+      this._socket.readyState === 2 ||
+      this._socket.readyState === 3
+    );
   }
 
   set isOpened(_) {
@@ -36,7 +41,9 @@ export class WebSocketClient {
 
   connectSocket() {
     try {
-      this._socket = new WebSocket(UseMock ? WebSocketMockUrl : this.connectionUrl);
+      this._socket = new WebSocket(
+        UseMock ? WebSocketMockUrl : this.connectionUrl
+      );
       this._onopen();
       this._onerror();
       this._onclose();
@@ -49,6 +56,7 @@ export class WebSocketClient {
   send<T>(realRequest: T, mockRequest: MockRequestI, cb?: void) {
     if (this.isClosed) {
       this.connectSocket();
+      // @ts-ignore: Unreachable code error
       this._onopen(this._send(realRequest, mockRequest, cb));
     } else {
       this._send(realRequest, mockRequest, cb);
@@ -65,12 +73,15 @@ export class WebSocketClient {
     if (UseMock) {
       sendMessage = { realRequest, mockRequest };
     } else {
+      // @ts-ignore: Unreachable code error
       sendMessage = realRequest;
     }
 
     try {
+      // @ts-ignore: Unreachable code error
       this._socket.send(this._parseToServer(sendMessage));
-      CL.log('_websocket request:', realRequest);
+      CL.log("_websocket request:", realRequest);
+      // @ts-ignore: Unreachable code error
       this._onmessage(cb);
     } catch (error_msg) {
       console.log(this._socket, error_msg);
@@ -79,13 +90,15 @@ export class WebSocketClient {
 
   _eventHandlers = {
     // Connection error
+    // @ts-ignore: Unreachable code error
     onError: (event) => {},
     // Connection was closed
+    // @ts-ignore: Unreachable code error
     onClose: (event) => {},
     // Server sent response: data is already parsed!
     onMessage: (data) => {},
     // Connection was opened
-    onOpen: (event) => {}
+    onOpen: (event) => {},
     // Connection was opened for the first time
     // onFirstOpen: (event) => {},
     // Connection was reopened
@@ -98,10 +111,10 @@ export class WebSocketClient {
 
   _getProtocol() {
     const protocol = window.location.protocol;
-    if (protocol === 'https:') {
-      return 'wss://';
+    if (protocol === "https:") {
+      return "wss://";
     }
-    return 'ws://';
+    return "ws://";
   }
 
   _onopen(cb?: (a: any) => void) {
@@ -112,7 +125,7 @@ export class WebSocketClient {
   }
 
   _onmessage(cb?: (a: any) => void) {
-    console.log('msg');
+    console.log("msg");
     this._socket.onmessage = (event) => {
       const data = JSON.parse(event.data);
       this._eventHandlers.onMessage(data);
@@ -122,15 +135,15 @@ export class WebSocketClient {
 
   _onerror() {
     this._socket.onerror = (event) => {
-      console.error('Connection error:', event);
+      console.error("Connection error:", event);
       this._eventHandlers.onError(event);
     };
   }
 
   _onclose() {
     this._socket.onclose = (event) => {
-      let message = 'Connection was closed. Code: ' + event.code;
-      if (event.reason) message += ', reason: ' + event.reason;
+      let message = "Connection was closed. Code: " + event.code;
+      if (event.reason) message += ", reason: " + event.reason;
       console.error(message);
       this._eventHandlers.onClose(event);
       this._tryToReconnect();
